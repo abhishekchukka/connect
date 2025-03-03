@@ -54,8 +54,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             createdAt: new Date(),
           });
         }
+
         setLoading(false);
       } else {
+        setLoading(false);
         router.push("/");
       }
     });

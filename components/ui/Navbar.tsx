@@ -73,7 +73,7 @@ const Navbar = () => {
         <li key={item.name}>
           <Link href={item.href}>
             <span
-              className={`flex items-center gap-2 hover:text-blue-600 ${
+              className={`flex items-center gap-3 block  hover:text-gray-900 hover:bg-yellow-400 hover:rounded-md  p-1  ${
                 mobile ? "text-lg" : ""
               }`}
             >
@@ -87,7 +87,7 @@ const Navbar = () => {
   );
 
   return (
-    <nav className="px-6 2xl:px-28 py-4 border-b">
+    <nav className="container mx-auto px-4 py-5 shadow-2xss border-b">
       <div className="flex justify-between items-center">
         {/* Logo and Mobile Menu */}
         <div className="flex items-center gap-4">
@@ -99,6 +99,7 @@ const Navbar = () => {
             </SheetTrigger>
             <SheetContent side="left" className="w-[300px]">
               <div className="mt-8 flex flex-col space-y-6">
+                <div className="ml-1 font-bold text-2xl">Menu</div>
                 <NavItems mobile />
                 <WalletButton />
               </div>
@@ -108,7 +109,7 @@ const Navbar = () => {
         </div>
 
         {/* Desktop Navigation */}
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-6 w-fit bg-amber-100 py-1 px-4 rounded-2xl">
           <NavItems />
           <WalletButton />
         </div>
