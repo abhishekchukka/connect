@@ -1,5 +1,6 @@
 "use client";
 
+import HeroSection from "@/components/HeroSection";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -75,6 +76,24 @@ const openTasks = [
     description: "Technical article on 'GraphQL vs REST' for a developer blog.",
     reward: "$40",
   },
+  {
+    id: 4,
+    title: "Build a Landing Page",
+    description: "Need a simple responsive landing page using Tailwind CSS.",
+    reward: "$50",
+  },
+  {
+    id: 5,
+    title: "Fix a JavaScript Bug",
+    description: "Resolve an issue in a Node.js application.",
+    reward: "$30",
+  },
+  {
+    id: 6,
+    title: "Write a Blog Post",
+    description: "Technical article on 'GraphQL vs REST' for a developer blog.",
+    reward: "$40",
+  },
 ];
 
 const availableServices = [
@@ -102,32 +121,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
-      <div
-        className="relative h-[500px] text-black "
-        style={{
-          backgroundImage: "url('/20943526.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        <div className="absolute inset-0 bg-black opacity-20"></div>
-        <div className="container mx-auto px-4 py-20">
-          <h1 className="text-4xl md:text-6xl font-bold text-center mb-4">
-            <span className="p-2">Learn.</span>{" "}
-            <span className="p-2">Collaborate.</span>{" "}
-            <span className="p-2">Grow.</span>
-          </h1>
-          <p className="text-lg md:text-3xl font-semibold text-center ">
-            Connect with developers,{" "}
-            <span className="p-2 bg-white rounded-r-xl rounded-l-3xl">
-              join hands-on projects, and improve your skills with the
-              community.
-            </span>
-          </p>
-        </div>
-      </div>
-
+      <HeroSection />
       {/* Main Content */}
       <div className="container mx-auto px-4 mt-20 space-y-12">
         {/* Open Groups */}
@@ -203,6 +197,8 @@ function Section({
   return (
     <div className="bg-white rounded-lg p-6 shadow-md">
       {/* Header */}
+
+      <div className="absolute bottom-0 right-0">+</div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">{title}</h2>
         <Link href={showMoreHref}>
