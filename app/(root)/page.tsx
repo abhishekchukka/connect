@@ -1,169 +1,135 @@
 "use client";
 
 import HeroSection from "@/components/HeroSection";
-import { Button } from "@/components/ui/button";
+import Section from "@/components/home/Section";
+import { useAuth } from "@/lib/AuthProvider";
+import { db } from "@/lib/firebaseConfig";
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { PlusCircle, ArrowRight } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-
-// 📌 Dummy Data - Improved & More Realistic
-const openGroups = [
-  {
-    id: 1,
-    title: "React Developers",
-    description:
-      "Discuss best practices, performance, and state management in React.",
-    members: 120,
-  },
-  {
-    id: 2,
-    title: "AI Enthusiasts",
-    description:
-      "Explore AI concepts, research papers, and hands-on ML projects.",
-    members: 95,
-  },
-  {
-    id: 3,
-    title: "Freelancers Hub",
-    description: "A place for freelancers to share tips and find gigs.",
-    members: 85,
-  },
-  {
-    id: 4,
-    title: "React Developers",
-    description:
-      "Discuss best practices, performance, and state management in React.",
-    members: 120,
-  },
-  {
-    id: 5,
-    title: "AI Enthusiasts",
-    description:
-      "Explore AI concepts, research papers, and hands-on ML projects.",
-    members: 95,
-  },
-  {
-    id: 6,
-    title: "Freelancers Hub",
-    description: "A place for freelancers to share tips and find gigs.",
-    members: 85,
-  },
-];
-
-const openTasks = [
-  {
-    id: 1,
-    title: "Build a Landing Page",
-    description: "Need a simple responsive landing page using Tailwind CSS.",
-    reward: "$50",
-  },
-  {
-    id: 2,
-    title: "Fix a JavaScript Bug",
-    description: "Resolve an issue in a Node.js application.",
-    reward: "$30",
-  },
-  {
-    id: 3,
-    title: "Write a Blog Post",
-    description: "Technical article on 'GraphQL vs REST' for a developer blog.",
-    reward: "$40",
-  },
-  {
-    id: 4,
-    title: "Build a Landing Page",
-    description: "Need a simple responsive landing page using Tailwind CSS.",
-    reward: "$50",
-  },
-  {
-    id: 5,
-    title: "Fix a JavaScript Bug",
-    description: "Resolve an issue in a Node.js application.",
-    reward: "$30",
-  },
-  {
-    id: 6,
-    title: "Write a Blog Post",
-    description: "Technical article on 'GraphQL vs REST' for a developer blog.",
-    reward: "$40",
-  },
-];
-
-const availableServices = [
-  {
-    id: 1,
-    title: "Resume Review",
-    description: "Get feedback on your resume from industry professionals.",
-    price: "$10",
-  },
-  {
-    id: 2,
-    title: "1-on-1 Coding Session",
-    description: "Live session to solve your coding doubts.",
-    price: "$25",
-  },
-  {
-    id: 3,
-    title: "Portfolio Feedback",
-    description: "Detailed review of your web developer portfolio.",
-    price: "$15",
-  },
-];
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
+import { PlusCircle } from "lucide-react";
+import { useState, useEffect } from "react"; // Add useEffect for fetching on mount
+import { toast } from "sonner";
 
 export default function Home() {
+  const [groups, setGroups] = useState<any[]>([]); // Initialize as an empty array
+  const { user } = useAuth();
+  const userId = user?.uid;
+  // Fetch groups from Firestore
+  const toggleJoinGroup = async (groupId: string) => {
+    if (!userId) {
+      alert("You need to log in to join groups.");
+      return;
+    }
+
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      const groupSnap = await getDoc(groupRef);
+
+      if (!groupSnap.exists()) return;
+
+      const groupData = groupSnap.data();
+      let updatedJoinedPeople = [...groupData.joinedPeople];
+
+      if (updatedJoinedPeople.includes(userId)) {
+        // Unjoin the group
+        updatedJoinedPeople = updatedJoinedPeople.filter((id) => id !== userId);
+      } else {
+        // Join the group
+        if (groupData.memberCount >= groupData.maxMembers) {
+          alert("Group is full!");
+          return;
+        }
+        updatedJoinedPeople.push(userId);
+      }
+
+      await updateDoc(groupRef, {
+        joinedPeople: updatedJoinedPeople,
+        memberCount: updatedJoinedPeople.length,
+      });
+
+      getGroups(); // Refresh groups
+    } catch (error) {
+      console.error("Error joining group:", error);
+    }
+  };
+
+  const getGroups = async () => {
+    try {
+      const now = new Date();
+      const groupsSnapshot = await getDocs(collection(db, "groups"));
+
+      const groupsWithDetails = await Promise.all(
+        groupsSnapshot.docs.map(async (groupDoc) => {
+          const groupData = groupDoc.data() as Omit<group, "id">;
+          const creatorUid = groupData.creator;
+          const groupExpiryDate = new Date(
+            groupData.expiryDate + " " + groupData.expiryTime
+          );
+
+          // Fetch creator's data from users collection
+          const creatorDoc = await getDoc(doc(db, "users", creatorUid));
+          const creatorName = creatorDoc.exists()
+            ? creatorDoc.data().name || "Unknown User"
+            : "Unknown User";
+
+          // Fetch names of joined users
+          const joinedUserNames = await Promise.all(
+            groupData.joinedPeople.map(async (userId) => {
+              const userDoc = await getDoc(doc(db, "users", userId));
+              return userDoc.exists() ? userDoc.data().name : "Unknown User";
+            })
+          );
+          if (groupExpiryDate < now && groupData.status !== "expired") {
+            await updateDoc(doc(db, "groups", groupDoc.id), {
+              status: "expired",
+            });
+          }
+
+          return {
+            id: groupDoc.id,
+            ...groupData,
+            creatorName,
+            joinedUserNames, // Store fetched names
+            joined: groupData.joinedPeople.includes(userId),
+          };
+        })
+      );
+      const activeGroups = groupsWithDetails.filter(
+        (group) => group.status !== "expired"
+      );
+      setGroups(activeGroups);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  };
+
+  // Fetch groups when the component mounts
+  useEffect(() => {
+    getGroups();
+  }, []); // Empty dependency array ensures this runs only once
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
       <HeroSection />
+
       {/* Main Content */}
       <div className="container mx-auto px-4 mt-20 space-y-12">
-        {/* Open Groups */}
+        {/* Display Fetched Groups */}
         <Section
-          title="Open Groups"
-          items={openGroups}
+          title="Fetched Groups"
+          items={groups} // Pass the fetched groups to the Section component
           buttonText="Join Now"
-          buttonHandler={(group) => alert(`Joined group: ${group.title}`)}
+          buttonHandler={toggleJoinGroup}
           renderInfo={(group) => (
-            <p className="text-sm text-gray-500">{group.members} members</p>
+            <p className="text-sm text-gray-500">{group.memberCount} members</p>
           )}
           showMoreHref="/groups"
-        />
-
-        {/* Open Tasks */}
-        <Section
-          title="Open Tasks"
-          items={openTasks}
-          buttonText="Take Task"
-          buttonHandler={(task) => alert(`Task taken: ${task.title}`)}
-          renderInfo={(task) => (
-            <p className="text-sm font-semibold text-green-600">
-              {task.reward}
-            </p>
-          )}
-          showMoreHref="/tasks"
-        />
-
-        {/* Available Services */}
-        <Section
-          title="Available Services"
-          items={availableServices}
-          buttonText="Request"
-          buttonHandler={(service) =>
-            alert(`Service requested: ${service.title}`)
-          }
-          renderInfo={(service) => (
-            <p className="text-sm font-semibold text-blue-600">
-              {service.price}
-            </p>
-          )}
-          showMoreHref="/services"
         />
       </div>
 
@@ -174,64 +140,6 @@ export default function Home() {
       >
         <PlusCircle size={24} />
       </button>
-    </div>
-  );
-}
-
-// 📌 Reusable Section Component
-function Section({
-  title,
-  items,
-  buttonText,
-  buttonHandler,
-  renderInfo,
-  showMoreHref,
-}: {
-  title: string;
-  items: Array<{ id: number; title: string; description: string }>;
-  buttonText: string;
-  buttonHandler: (item: any) => void;
-  renderInfo: (item: any) => JSX.Element;
-  showMoreHref: string;
-}) {
-  return (
-    <div className="bg-white rounded-lg p-6 shadow-md">
-      {/* Header */}
-
-      <div className="absolute bottom-0 right-0">+</div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">{title}</h2>
-        <Link href={showMoreHref}>
-          <Button variant="ghost" className="flex items-center gap-2">
-            Show More <ArrowRight size={16} />
-          </Button>
-        </Link>
-      </div>
-
-      {/* Cards */}
-      <div className="flex gap-6   overflow-x-scroll no-scrollbar ">
-        {items.map((item) => (
-          <Card
-            key={item.id}
-            className="p-4 min-w-[420px] border hover:shadow-lg transition-all"
-          >
-            <CardHeader>
-              <CardTitle className="bg-amber-300 w-fit rounded-md shadow-md px-1 py-2">
-                {item.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">{item.description}</p>
-              {renderInfo(item)}
-            </CardContent>
-            <CardFooter>
-              <Button className="w-full" onClick={() => buttonHandler(item)}>
-                {buttonText}
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

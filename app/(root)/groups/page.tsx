@@ -15,44 +15,49 @@ import { db } from "@/lib/firebaseConfig";
 import { useAuth } from "@/lib/AuthProvider"; // Assuming you have an AuthContext for user authentication
 import CreateGroupForm from "@/components/goups/createGroupForm";
 import GroupCard from "@/components/goups/GroupCard";
-
-interface Group {
-  id: string;
-  title: string;
-  description: string;
-  creator: string;
-  creatorName?: string;
-  joinedPeople: string[];
-  joined: boolean;
-  memberCount: number;
-  maxMembers: number;
-  expiryTime: string;
-  expiryDate: string;
-  location: string;
-  category: string;
-}
+import { useRouter } from "next/navigation";
+// import { group } from "@/lib/type";
+import { toast } from "sonner";
+import { group } from "@/lib/type";
 
 export default function ActiveGroups() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  console.log(groups);
+  // console.log(groups);
+  const [groups, setGroups] = useState<group[]>([]);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const { user } = useAuth(); // Get logged-in user details
+  const [fetch, setfetchData] = useState(false);
   const userId = user?.uid;
-
+  const router = useRouter();
+  const options = [
+    "sports",
+    "development",
+    "fun",
+    "interaction",
+    "social",
+    "learning",
+    "exam-prep",
+  ];
   useEffect(() => {
+    if (!user) {
+      router.push("/");
+    }
     getGroups();
-  }, []);
+  }, [fetch]);
 
   const getGroups = async () => {
     try {
+      const now = new Date();
       const groupsSnapshot = await getDocs(collection(db, "groups"));
 
       const groupsWithDetails = await Promise.all(
         groupsSnapshot.docs.map(async (groupDoc) => {
-          const groupData = groupDoc.data() as Omit<Group, "id">;
+          const groupData = groupDoc.data() as Omit<group, "id">;
           const creatorUid = groupData.creator;
+          const groupExpiryDate = new Date(
+            groupData.expiryDate + " " + groupData.expiryTime
+          );
 
           // Fetch creator's data from users collection
           const creatorDoc = await getDoc(doc(db, "users", creatorUid));
@@ -67,6 +72,11 @@ export default function ActiveGroups() {
               return userDoc.exists() ? userDoc.data().name : "Unknown User";
             })
           );
+          if (groupExpiryDate < now && groupData.status !== "expired") {
+            await updateDoc(doc(db, "groups", groupDoc.id), {
+              status: "expired",
+            });
+          }
 
           return {
             id: groupDoc.id,
@@ -77,8 +87,10 @@ export default function ActiveGroups() {
           };
         })
       );
-
-      setGroups(groupsWithDetails);
+      const activeGroups = groupsWithDetails.filter(
+        (group) => group.status !== "expired"
+      );
+      setGroups(activeGroups);
     } catch (error) {
       console.error("Error fetching groups:", error);
     }
@@ -138,17 +150,44 @@ export default function ActiveGroups() {
 
       const groupData = groupSnap.data();
       if (groupData.creator !== userId) {
-        alert("Only the group creator can delete this group.");
+        toast("Only the group creator can delete this group.");
         return;
       }
 
-      const confirmDelete = confirm(
-        "Are you sure you want to delete this group?"
-      );
-      if (confirmDelete) {
-        await deleteDoc(groupRef);
-        getGroups(); // Refresh groups
-      }
+      toast.custom((t) => (
+        <div className="rounded-lg shadow-lg bg-white p-4 max-w-sm">
+          <h3 className="text-lg font-semibold text-gray-900">Are you sure?</h3>
+          <p className="text-sm text-gray-500 mt-2">
+            This will permanently delete the group.
+          </p>
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                toast.dismiss(t); // Dismiss the current toast
+                try {
+                  await deleteDoc(groupRef); // Delete the document
+                  // Refresh groups
+                  toast.success("Group deleted successfully.");
+                  setfetchData((x) => !x);
+                } catch (error) {
+                  toast.error("Failed to delete the group.");
+                }
+              }}
+            >
+              Yes, delete
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                toast.dismiss(t); // Dismiss the current toast
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ));
     } catch (error) {
       console.error("Error deleting group:", error);
     }
@@ -181,11 +220,16 @@ export default function ActiveGroups() {
           className="p-3 border rounded-md"
         >
           <option value="">All Categories</option>
-          <option value="Sports">Sports</option>
+          {options.map((option, _) => (
+            <option key={_} value={option}>
+              {option}
+            </option>
+          ))}
+          {/* <option value="Sports">Sports</option>
           <option value="Web Development">Web Development</option>
           <option value="Artificial Intelligence">AI</option>
           <option value="Freelancing">Freelancing</option>
-          <option value="Cybersecurity">Cybersecurity</option>
+          <option value="Cybersecurity">Cybersecurity</option> */}
         </select>
 
         <Button
@@ -228,7 +272,10 @@ export default function ActiveGroups() {
 
       {/* ➕ Create Group Form Modal */}
       {showCreateForm && (
-        <CreateGroupForm onClose={() => setShowCreateForm(false)} />
+        <CreateGroupForm
+          onClose={() => setShowCreateForm(false)}
+          fetch={setfetchData}
+        />
       )}
     </div>
   );

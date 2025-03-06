@@ -13,24 +13,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { group } from "@/lib/type";
 import { Calendar, Clock, MapPin, Users, Trash2, Info } from "lucide-react";
 
 interface GroupCardProps {
-  group: {
-    id: string;
-    title: string;
-    description: string;
-    creator: string;
-    creatorName?: string;
-    joinedPeople: string[];
-    joined: boolean;
-    memberCount: number;
-    maxMembers: number;
-    expiryTime: string;
-    expiryDate: string;
-    location: string;
-    category: string;
-  };
+  group: group;
   onJoinToggle: (groupId: string) => void;
   onDelete: (groupId: string) => void;
   userId?: string;

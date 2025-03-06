@@ -5,16 +5,36 @@ import { collection, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebaseConfig";
 import { useAuth } from "@/lib/AuthProvider";
+import { stat } from "fs";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
-export default function CreateGroupForm({ onClose }: { onClose: () => void }) {
+export default function CreateGroupForm({
+  onClose,
+  fetch,
+}: {
+  onClose: () => void;
+  fetch: (x: any) => void;
+}) {
   const [title, setTitle] = useState("");
   const { user } = useAuth();
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
+  // const [status, setStatus] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [expiryTime, setExpiryTime] = useState("");
   const [maxMembers, setMaxMembers] = useState("");
+  const options = [
+    "sports",
+    "development",
+    "fun",
+    "interaction",
+    "social",
+    "learning",
+    "exam-prep",
+  ];
+  const router = useRouter();
 
   // 📌 Create a new group in Firestore
   const createGroup = async () => {
@@ -33,14 +53,15 @@ export default function CreateGroupForm({ onClose }: { onClose: () => void }) {
         expiryTime,
         maxMembers: parseInt(maxMembers, 10),
         creator: user.uid, // Replace with actual user info
-        memberCount: 1, // Default count
+        memberCount: 0, // Default count
         joinedPeople: [], // Empty array initially
         joined: false,
+        status: "active",
       };
 
       const docRef = await addDoc(collection(db, "groups"), newGroup);
       console.log("Group created with ID:", docRef.id);
-      alert("Group Created Successfully!");
+      toast("Group Created Successfully!");
 
       // Reset Form
       setTitle("");
@@ -50,11 +71,12 @@ export default function CreateGroupForm({ onClose }: { onClose: () => void }) {
       setExpiryDate("");
       setExpiryTime("");
       setMaxMembers("");
-
+      // router.push("/groups");
+      fetch((x) => !x);
       onClose(); // Close the modal
     } catch (error) {
       console.error("Error creating group:", error);
-      alert("Failed to create group. Try again!");
+      toast("Failed to create group. Try again!");
     }
   };
 
@@ -83,13 +105,26 @@ export default function CreateGroupForm({ onClose }: { onClose: () => void }) {
         ></textarea>
 
         <label>Category:</label>
-        <input
+        <select
+          className="w-full p-2 border rounded-md mb-2"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="">All Categories</option>
+          {options.map((option, _) => (
+            <option key={_} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+
+        {/* <input
           type="text"
           placeholder="Enter category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           className="w-full p-2 border rounded-md mb-2"
-        />
+        /> */}
 
         <label>Location:</label>
         <input
