@@ -4,7 +4,7 @@ import { useState } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebaseConfig";
-import { useAuth } from "@/lib/AuthProvider";
+import { useAuth } from "@/lib/context/AuthProvider";
 import { stat } from "fs";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";

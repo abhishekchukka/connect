@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { auth, db } from "../lib/firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 import {
   signInWithPopup,
   signOut,
@@ -46,11 +46,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             image: currentUser.photoURL,
             wallet: 10, // Default wallet balance
             rating: 0, // Default rating
-            createdTasks: [],
+
             completedTasks: [],
-            createdGroups: [],
-            joinedGroups: [],
-            offeredServices: [],
+
             createdAt: new Date(),
           });
         }

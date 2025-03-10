@@ -28,7 +28,7 @@ export default function Section({
   showMoreHref: string;
 }) {
   // Use an object to track the join state for each item by its ID
-  const [joinStates, setJoinStates] = useState<Record<number, boolean>>({});
+  // const [joinStates, setJoinStates] = useState<Record<number, boolean>>({});
 
   return (
     <div className="bg-white rounded-lg p-6 shadow-md">
@@ -46,7 +46,7 @@ export default function Section({
       <div className="flex gap-6 overflow-x-scroll no-scrollbar">
         {items.map((item) => {
           // Get the current join state for this specific item
-          const isJoined = joinStates[item.id] || false;
+          // const isJoined = joinStates[item.id] || false;
 
           return (
             <Card
@@ -68,13 +68,9 @@ export default function Section({
                   onClick={async () => {
                     await buttonHandler(item.id);
                     // Toggle the join state for this specific item
-                    setJoinStates((prev) => ({
-                      ...prev,
-                      [item.id]: !prev[item.id],
-                    }));
                   }}
                 >
-                  {isJoined ? "Exit" : buttonText}
+                  {item.joined ? "Exit" : buttonText}
                 </Button>
               </CardFooter>
             </Card>
