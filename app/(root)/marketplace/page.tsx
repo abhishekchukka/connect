@@ -4,15 +4,28 @@ import { useTasks } from "@/lib/context/TaskContext";
 import TaskCard from "@/components/marketplace.tsx/TaskCard";
 import { PlusCircle } from "lucide-react";
 import CreateTaskForm from "@/components/marketplace.tsx/createTaskForm";
+// import { getUserFromDB } from "@/lib/firebaseutils";
+import { useAuth } from "@/lib/context/AuthProvider";
+import { useRouter } from "next/navigation";
 
 export default function TasksPage() {
-  const { tasks, loading, refreshTasks } = useTasks();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const { tasks, refreshTasks } = useTasks();
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/");
+    }
+  }, [user, router]);
 
   useEffect(() => {
     refreshTasks();
   }, []);
-
+  if (!user) {
+    return <div>loading</div>;
+  }
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold">Active Tasks</h1>

@@ -13,6 +13,7 @@ import {
   updateDoc,
   deleteDoc,
   arrayUnion,
+  arrayRemove,
 } from "firebase/firestore";
 import { db } from "@/lib/firebaseConfig";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ interface Task {
   reward: string;
   deadline: string; // Store as YYYY-MM-DD HH:mm
   creator: string;
+  assignedTo?: string;
   status: "live" | "accepted" | "expired";
 }
 
@@ -32,9 +34,10 @@ interface TaskContextType {
   tasks: Task[];
   loading: boolean;
   addTask: (task: Task) => Promise<void>;
-  acceptTask: (taskId: string) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<void>;
+  acceptTask: (taskId: string, userId: string) => Promise<void>;
+  deleteTask: (taskId: string, reward: string) => Promise<void>;
   refreshTasks: () => void;
+  getTasks: () => Promise<void>;
   joinTask: (taskID: string, userId: string) => Promise<void>;
 }
 
@@ -43,8 +46,8 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
-  const userId = user?.uid;
+  const { user, updateUser, userData } = useAuth();
+  // const userId = user?.uid;
 
   // Fetch tasks from Firestore
   const getTasks = async () => {
@@ -71,7 +74,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         })
       );
 
-      setTasks(tasksWithDetails.filter((task) => task.status !== "accepted"));
+      setTasks(tasksWithDetails);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -92,23 +95,33 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     try {
       const taskRef = doc(db, "tasks", taskID);
       await updateDoc(taskRef, { appliedPeople: arrayUnion(userId) });
+      await updateUser({ joinedTasks: arrayUnion(taskID) });
     } catch (error) {
       console.error("Error joining task:", error);
     }
   };
 
-  const acceptTask = async (taskId: string) => {
+  const acceptTask = async (taskId: string, userId: string) => {
     try {
-      await updateDoc(doc(db, "tasks", taskId), { status: "accepted" });
+      await updateDoc(doc(db, "tasks", taskId), {
+        status: "accepted",
+        assignedTo: userId,
+        // Remove the accepted user from appliedPeople array
+        appliedPeople: arrayRemove(userId),
+      });
+      toast.success("Task assigned successfully!");
       refreshTasks();
     } catch (error) {
       console.error("Error accepting task:", error);
+      toast.error("Failed to assign task");
     }
   };
 
-  const deleteTask = async (taskId: string) => {
+  const deleteTask = async (taskId: string, reward: string) => {
     try {
       await deleteDoc(doc(db, "tasks", taskId));
+      await updateUser({ wallet: userData?.wallet + parseInt(reward) });
+      toast.success("Task deleted successfully!");
       refreshTasks();
     } catch (error) {
       console.error("Error deleting task:", error);
@@ -129,6 +142,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     <TaskContext.Provider
       value={{
         tasks,
+        getTasks,
         loading,
         addTask,
         acceptTask,

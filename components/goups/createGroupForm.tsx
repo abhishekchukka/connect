@@ -5,9 +5,10 @@ import { collection, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebaseConfig";
 import { useAuth } from "@/lib/context/AuthProvider";
-import { stat } from "fs";
+// import { stat } from "fs";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { updateCurrentUser } from "firebase/auth";
 
 export default function CreateGroupForm({
   onClose,
@@ -17,7 +18,7 @@ export default function CreateGroupForm({
   fetch: (x: any) => void;
 }) {
   const [title, setTitle] = useState("");
-  const { user } = useAuth();
+  const { user, userData, updateUser } = useAuth();
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
@@ -25,6 +26,7 @@ export default function CreateGroupForm({
   const [expiryDate, setExpiryDate] = useState("");
   const [expiryTime, setExpiryTime] = useState("");
   const [maxMembers, setMaxMembers] = useState("");
+
   const options = [
     "sports",
     "development",
@@ -35,11 +37,16 @@ export default function CreateGroupForm({
     "exam-prep",
   ];
   const router = useRouter();
+  // console.log("user", user);
 
   // 📌 Create a new group in Firestore
   const createGroup = async () => {
     if (!title || !description || !category || !location || !maxMembers) {
-      alert("Please fill in all required fields.");
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (userData?.wallet < 2) {
+      toast.error("You don't have enough balance to create a group");
       return;
     }
 
@@ -54,15 +61,23 @@ export default function CreateGroupForm({
         maxMembers: parseInt(maxMembers, 10),
         creator: user.uid, // Replace with actual user info
         memberCount: 0, // Default count
-        joinedPeople: [], // Empty array initially
+        joinedPeople: [user.uid], // Empty array initially
         joined: false,
         status: "active",
       };
-
+      if (userData!.wallet >= 2) {
+        await updateUser({ wallet: userData?.wallet - 2 });
+      }
       const docRef = await addDoc(collection(db, "groups"), newGroup);
       console.log("Group created with ID:", docRef.id);
+      await updateUser({
+        createdGroups: [...userData?.createdGroups, docRef.id],
+      });
       toast("Group Created Successfully!");
-
+      router.refresh();
+      setTimeout(() => {
+        onClose();
+      }, 1000); // 1 second delay
       // Reset Form
       setTitle("");
       setDescription("");

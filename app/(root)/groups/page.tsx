@@ -43,6 +43,9 @@ export default function ActiveGroups() {
   useEffect(() => {
     getGroups();
   }, [showCreateForm]);
+  if (!user) {
+    return <div>loading</div>;
+  }
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 🔍 Search & Filter Section */}

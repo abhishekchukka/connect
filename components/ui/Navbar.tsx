@@ -26,8 +26,8 @@ const navigationItems = [
 ];
 
 const Navbar = () => {
-  const { user, signInWithGoogle, logout, loading } = useAuth();
-  // console.log(user);
+  const { user, userData, signInWithGoogle, logout, loading } = useAuth();
+  console.log(userData);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [balance, setWalletBalance] = useState<number | null>(null);
   const [balanceloading, setbalanceloading] = useState<boolean>(false);
@@ -36,17 +36,16 @@ const Navbar = () => {
   useEffect(() => {
     const fetchWalletBalance = async () => {
       setbalanceloading(true);
-      if (user?.uid) {
-        const userData = await getUserFromDB(user.uid);
+      if (userData?.wallet) {
         setbalanceloading(false);
-        setWalletBalance(userData?.wallet || 0);
+        setWalletBalance(userData?.wallet);
       } else {
         setbalanceloading(false);
         setWalletBalance(0);
       }
     };
     fetchWalletBalance();
-  }, [user]);
+  }, [userData]);
 
   if (loading) {
     return (

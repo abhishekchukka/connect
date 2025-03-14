@@ -20,17 +20,21 @@ export default function CreateTaskForm({
   const [reward, setReward] = useState("");
   const [status, setStatus] = useState("pending");
 
-  const { user } = useAuth();
-  // console.log(user);
+  const { user, userData, updateUser } = useAuth();
+  console.log(userData);
   const { refreshTasks } = useTasks();
 
   // const priorities = ["Low", "Medium", "High"];
-  const statuses = ["pending", "in-progress", "completed", "expired"];
+  // const statuses = ["pending", "in-progress", "completed", "expired"];
 
   // 📌 Create a new task in Firestore
   const createTask = async () => {
     if (!taskTitle || !description || !dueDate || !reward) {
-      alert("Please fill in all required fields.");
+      toast("Please fill in all required fields.");
+      return;
+    }
+    if (parseInt(reward) > userData?.wallet) {
+      toast("You don't have enough balance to create a task");
       return;
     }
     if (!dueDate < new Date()) {
@@ -50,7 +54,15 @@ export default function CreateTaskForm({
       };
 
       const docRef = await addDoc(collection(db, "tasks"), newTask);
+
       console.log("Task created with ID:", docRef.id);
+      await updateUser(
+        {
+          createdTasks: [...userData?.createdTasks, docRef.id],
+          wallet: userData?.wallet - parseInt(reward),
+        },
+        "task created"
+      );
       toast("Task Created Successfully!");
 
       // Reset Form

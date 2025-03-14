@@ -28,7 +28,7 @@ const TaskCard: FC<TaskCardProps> = ({ task }) => {
   const applicantsCount = task.appliedPeople?.length || 0;
 
   return (
-    <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+    <div className="bg-white  rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
       {/* Status Banner */}
       <div
         className={`px-4 py-1 text-white text-xs font-medium
@@ -40,16 +40,16 @@ const TaskCard: FC<TaskCardProps> = ({ task }) => {
 
       <div className="p-6">
         {/* Header Section */}
-        <div className="flex justify-between items-start mb-4">
-          <h3 className="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors">
+        <div className="flex justify-between relative items-start mb-4">
+          <h3 className="text-xl font-bold  text-gray-800 hover:text-blue-600 transition-colors">
             {task.title}
           </h3>
           {isCreator && (
             <Button
-              onClick={() => deleteTask(task.id)}
+              onClick={() => deleteTask(task.id, task.reward)}
               variant="ghost"
               size="icon"
-              className="text-gray-400 hover:text-red-500 transition-colors"
+              className="text-gray-400 absolute hover:text-red-500 transition-colors top-2 right-2"
             >
               <Trash size={18} />
             </Button>

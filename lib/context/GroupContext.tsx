@@ -30,6 +30,7 @@ interface GroupContextType {
   resetFilters: () => void;
   toggleJoinGroup: (groupId: string) => Promise<void>;
   deleteGroup: (groupId: string) => Promise<void>;
+  updateGroup: (groupId: string, updateData: Partial<group>) => Promise<void>;
   refreshGroups: () => void;
 }
 
@@ -42,7 +43,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
   const [filterCategory, setFilterCategory] = useState("");
   const [fetchTrigger, setFetchTrigger] = useState(false);
   const [present, setPresent] = useState(false);
-  const { user } = useAuth();
+  const { user, updateUser, userData } = useAuth();
   const userId = user?.uid;
 
   const getGroups = async () => {
@@ -111,10 +112,12 @@ export function GroupProvider({ children }: { children: ReactNode }) {
 
       const groupData = groupSnap.data();
       let updatedJoinedPeople = [...groupData.joinedPeople];
+      let joinedGroups = [...userData?.joinedGroups];
 
       if (updatedJoinedPeople.includes(userId)) {
         setPresent(true);
         updatedJoinedPeople = updatedJoinedPeople.filter((id) => id !== userId);
+        joinedGroups = joinedGroups.filter((id) => id !== groupId);
       } else {
         setPresent(false);
         if (groupData.memberCount >= groupData.maxMembers) {
@@ -128,6 +131,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
         joinedPeople: updatedJoinedPeople,
         memberCount: updatedJoinedPeople.length,
       });
+      await updateUser({ joinedGroups: joinedGroups });
 
       refreshGroups();
     } catch (error) {
@@ -186,6 +190,50 @@ export function GroupProvider({ children }: { children: ReactNode }) {
       ));
     } catch (error) {
       console.error("Error deleting group:", error);
+    }
+  };
+  const updateGroup = async (groupId: string, updateData: Partial<group>) => {
+    if (!userId) {
+      toast.error("You need to be logged in to update a group.");
+      return;
+    }
+
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      const groupSnap = await getDoc(groupRef);
+
+      if (!groupSnap.exists()) {
+        toast.error("Group not found.");
+        return;
+      }
+
+      const groupData = groupSnap.data();
+
+      // Check if the current user is the creator of the group
+      if (groupData.creator !== userId) {
+        toast.error("Only the group creator can update this group.");
+        return;
+      }
+
+      // Remove any undefined or null values from updateData
+      const cleanedUpdateData = Object.entries(updateData).reduce(
+        (acc, [key, value]) => {
+          if (value !== undefined && value !== null) {
+            acc[key] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, any>
+      );
+
+      // Update the document
+      await updateDoc(groupRef, cleanedUpdateData);
+
+      toast.success("Group updated successfully!");
+      refreshGroups(); // Refresh the groups list to show the updates
+    } catch (error) {
+      console.error("Error updating group:", error);
+      toast.error("Failed to update the group.");
     }
   };
 
