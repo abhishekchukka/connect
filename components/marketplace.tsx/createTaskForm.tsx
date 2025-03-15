@@ -37,8 +37,10 @@ export default function CreateTaskForm({
       toast("You don't have enough balance to create a task");
       return;
     }
-    if (!dueDate < new Date()) {
-      setStatus("expired");
+
+    if (new Date(dueDate) < new Date()) {
+      toast("Deadline must be in the future");
+      return;
     }
 
     try {

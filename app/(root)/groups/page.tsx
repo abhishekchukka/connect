@@ -7,6 +7,7 @@ import CreateGroupForm from "@/components/goups/createGroupForm";
 import GroupCard from "@/components/goups/GroupCard";
 import { useRouter } from "next/navigation";
 import { useGroups } from "@/lib/context/GroupContext";
+import LoginPrompt from "@/components/ui/loginBanner";
 
 export default function ActiveGroups() {
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -35,16 +36,10 @@ export default function ActiveGroups() {
   ];
 
   useEffect(() => {
-    if (!user) {
-      router.push("/");
-    }
-  }, [user, router]);
-
-  useEffect(() => {
     getGroups();
   }, [showCreateForm]);
   if (!user) {
-    return <div>loading</div>;
+    return <LoginPrompt />;
   }
   return (
     <div className="min-h-screen bg-gray-50">

@@ -2,7 +2,7 @@
 import { useAuth } from "@/lib/context/AuthProvider";
 import { db } from "@/lib/firebaseConfig";
 import { getUserFromDB } from "@/lib/firebaseutils";
-import { doc, increment, updateDoc } from "firebase/firestore";
+import { arrayUnion, doc, increment, updateDoc } from "firebase/firestore";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { FaCheck } from "react-icons/fa";
@@ -70,6 +70,7 @@ const RunningTasksSection = ({
       const assignedUserRef = doc(db, "users", assignedTo);
       await updateDoc(assignedUserRef, {
         wallet: increment(parseInt(reward)),
+        completedTasks: arrayUnion(taskId),
       });
 
       toast.success("Task verified and reward transferred!");

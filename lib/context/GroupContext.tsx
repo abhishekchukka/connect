@@ -44,6 +44,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
   const [fetchTrigger, setFetchTrigger] = useState(false);
   const [present, setPresent] = useState(false);
   const { user, updateUser, userData } = useAuth();
+  console.log("userData", userData);
   const userId = user?.uid;
 
   const getGroups = async () => {
@@ -113,8 +114,12 @@ export function GroupProvider({ children }: { children: ReactNode }) {
       const groupData = groupSnap.data();
       let updatedJoinedPeople = [...groupData.joinedPeople];
       let joinedGroups = [...userData?.joinedGroups];
+      console.log("joinedGroups", joinedGroups);
 
-      if (updatedJoinedPeople.includes(userId)) {
+      if (
+        updatedJoinedPeople.includes(userId) ||
+        joinedGroups.includes(groupId)
+      ) {
         setPresent(true);
         updatedJoinedPeople = updatedJoinedPeople.filter((id) => id !== userId);
         joinedGroups = joinedGroups.filter((id) => id !== groupId);
@@ -125,6 +130,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
           return;
         }
         updatedJoinedPeople.push(userId);
+        joinedGroups.push(groupId);
       }
 
       await updateDoc(groupRef, {

@@ -6,7 +6,7 @@ import { getUserFromDB } from "@/lib/firebaseutils";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FaUsers,
   FaTasks,
@@ -43,7 +43,7 @@ const TaskSection = ({
     [key: string]: AppliedUser[];
   }>({});
   const { user } = useAuth();
-  console.log(appliedUsers);
+  // console.log(appliedUsers);
   useEffect(() => {
     const fetchAppliedUsers = async () => {
       const usersData: { [key: string]: AppliedUser[] } = {};
@@ -93,14 +93,16 @@ const TaskSection = ({
                     </span>
                   </div>
                 </div>
-                {task.status !== "accepted" && (
-                  <button
-                    onClick={() => onDeleteTask(task.id, task.reward)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <FaTrash />
-                  </button>
-                )}
+                {task.status !== "accepted" ||
+                  task.status !== "expired" ||
+                  (task.status !== "completed" && (
+                    <button
+                      onClick={() => onDeleteTask(task.id, task.reward)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <FaTrash />
+                    </button>
+                  ))}
               </div>
 
               <div className="mt-4">
@@ -187,8 +189,23 @@ const ActivitySection = ({
       <div className="space-y-4">
         {items.map((item, index) => (
           <div key={index} className="p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium">{item.title}</h4>
-            <p className="text-sm text-gray-600">{item.description}</p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-medium">{item.title || item.name}</h4>
+                <p className="text-sm text-gray-600">{item.description}</p>
+              </div>
+              {item.status && (
+                <span
+                  className={`px-3 py-1 rounded-full text-sm ${
+                    item.status === "active"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}
+                >
+                  {item.status}
+                </span>
+              )}
+            </div>
             {showPeople && item.people && item.people.length > 0 && (
               <div className="mt-3">
                 <p className="text-sm font-medium text-gray-700 mb-2">
@@ -218,7 +235,6 @@ const ActivitySection = ({
 const DashboardPage = () => {
   const { user, userData } = useAuth();
   const { groups } = useGroups();
-  // const { tasks } = useTasks();
   const router = useRouter();
   const { tasks, acceptTask, deleteTask, refreshTasks } = useTasks();
   const [userGroups, setUserGroups] = useState<any[]>([]);
@@ -228,46 +244,34 @@ const DashboardPage = () => {
     [key: string]: AppliedUser[];
   }>({});
 
-  useEffect(() => {
-    if (!user) {
-      router.push("/");
-    }
-  }, [user, router]);
-
-  useEffect(() => {
-    refreshTasks();
-  }, []);
-  useEffect(() => {
-    const fetchAppliedUsers = async () => {
-      // await getTasks();
-      const usersData: { [key: string]: AppliedUser[] } = {};
-
-      for (const task of tasks) {
-        if (task.appliedPeople && task.appliedPeople.length > 0) {
-          const users = await Promise.all(
-            task.appliedPeople.map(async (userId: string) => {
-              const user = await getUserFromDB(userId);
-              if (user) {
-                return {
-                  uid: user.uid,
-                  name: user.name,
-                  image: user.image,
-                };
-              }
-              return null;
-            })
-          );
-          usersData[task.id] = users.filter(
-            (user): user is AppliedUser => user !== null
-          );
-        }
+  // Fetch applied users data
+  const fetchAppliedUsers = useCallback(async () => {
+    const usersData: { [key: string]: AppliedUser[] } = {};
+    for (const task of tasks) {
+      if (task.appliedPeople && task.appliedPeople.length > 0) {
+        const users = await Promise.all(
+          task.appliedPeople.map(async (userId: string) => {
+            const user = await getUserFromDB(userId);
+            if (user) {
+              return {
+                uid: user.uid,
+                name: user.name,
+                image: user.image,
+              };
+            }
+            return null;
+          })
+        );
+        usersData[task.id] = users.filter(
+          (user): user is AppliedUser => user !== null
+        );
       }
-      setAppliedUsers(usersData);
-    };
-
-    fetchAppliedUsers();
+    }
+    setAppliedUsers(usersData);
   }, [tasks]);
-  useEffect(() => {
+
+  // Update user groups
+  const updateUserGroups = useCallback(() => {
     if (userData && groups) {
       const userCreatedGroups = groups
         .filter((group) => userData.createdGroups.includes(group.id))
@@ -279,7 +283,8 @@ const DashboardPage = () => {
     }
   }, [userData, groups]);
 
-  useEffect(() => {
+  // Update user tasks
+  const updateUserTasks = useCallback(() => {
     if (userData && tasks) {
       // Set completed tasks
       const completedTasks = tasks.filter((task) =>
@@ -298,10 +303,38 @@ const DashboardPage = () => {
     }
   }, [userData, tasks]);
 
+  // Combined update function
+  const updateDashboardData = useCallback(async () => {
+    await refreshTasks(); // Refresh tasks first
+    await fetchAppliedUsers();
+    updateUserGroups();
+    updateUserTasks();
+  }, [refreshTasks, fetchAppliedUsers, updateUserGroups, updateUserTasks]);
+
+  // Initial data load
+  useEffect(() => {
+    updateDashboardData();
+  }, [updateDashboardData]);
+
+  // Set up polling interval
+  useEffect(() => {
+    // Only set up polling if user is authenticated
+    if (!user || !userData) return;
+
+    const intervalId = setInterval(() => {
+      updateDashboardData();
+    }, 3000); // Poll every 3 seconds
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [user, userData, updateDashboardData]);
+
   const handleAcceptUser = async (taskId: string, userId: string) => {
     try {
       await acceptTask(taskId, userId);
       toast.success("User accepted for the task!");
+      // Immediately refresh data after accepting user
+      await updateDashboardData();
     } catch (error) {
       toast.error("Failed to accept user");
     }
@@ -311,18 +344,17 @@ const DashboardPage = () => {
     try {
       await deleteTask(taskId, reward);
       toast.success("Task deleted successfully!");
+      // Immediately refresh data after deleting task
+      await updateDashboardData();
     } catch (error) {
       toast.error("Failed to delete task");
     }
   };
-  if (!userData) {
-    return <div className="text-center py-10">Loading...</div>;
-  }
-  if (!user) {
-    router.push("/");
-    return <div>loading</div>;
-  }
 
+  if (!userData || !user) {
+    router.push("/");
+    return <div className="text-center py-10">requires Login...</div>;
+  }
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Profile Section */}
@@ -394,6 +426,122 @@ const DashboardPage = () => {
           tasks={tasks}
           emptyMessage="No tasks are assigned to you"
         />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold mb-4">Joined Groups</h3>
+            {groups && userData.joinedGroups.length > 0 ? (
+              <div className="space-y-4">
+                {groups
+                  .filter((group) => userData.joinedGroups.includes(group.id))
+                  .map((group) => (
+                    <div key={group.id} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{group.name}</h4>
+                          <p className="text-sm text-gray-600">
+                            {group.description}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm ${
+                            group.status === "active"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {group.status}
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-sm text-gray-600">
+                          Members: {group.joinedUserNames?.length || 0}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">
+                No groups joined yet
+              </p>
+            )}
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold mb-4">Applied Tasks</h3>
+            {tasks ? (
+              <div className="space-y-4">
+                {tasks
+                  .filter(
+                    (task) =>
+                      task.appliedPeople?.includes(userData.uid) &&
+                      task.status !== "completed" &&
+                      task.status !== "accepted"
+                  )
+                  .map((task) => (
+                    <div key={task.id} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{task.title}</h4>
+                          <p className="text-sm text-gray-600">
+                            {task.description}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                          {task.status}
+                        </span>
+                      </div>
+                      <div className="mt-2">
+                        <span className="text-sm bg-primary-100 text-primary-700 px-2 py-1 rounded">
+                          Reward: {task.reward}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">
+                No tasks applied to yet
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-xl font-semibold mb-4">Completed Tasks</h3>
+          {tasks && userData.completedTasks.length > 0 ? (
+            <div className="space-y-4">
+              {tasks
+                .filter((task) => userData.completedTasks.includes(task.id))
+                .map((task) => (
+                  <div key={task.id} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-medium">{task.title}</h4>
+                        <p className="text-sm text-gray-600">
+                          {task.description}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                        Completed
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm bg-primary-100 text-primary-700 px-2 py-1 rounded">
+                        Reward: {task.reward}
+                      </span>
+                      <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        Earned
+                      </span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">
+              No completed tasks yet
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

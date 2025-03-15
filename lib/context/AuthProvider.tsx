@@ -84,7 +84,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
       } else {
         setLoading(false);
-        router.push("/");
       }
     });
 

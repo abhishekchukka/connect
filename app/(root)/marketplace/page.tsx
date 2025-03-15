@@ -7,24 +7,19 @@ import CreateTaskForm from "@/components/marketplace.tsx/createTaskForm";
 // import { getUserFromDB } from "@/lib/firebaseutils";
 import { useAuth } from "@/lib/context/AuthProvider";
 import { useRouter } from "next/navigation";
+import LoginPrompt from "@/components/ui/loginBanner";
 
 export default function TasksPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const { tasks, refreshTasks } = useTasks();
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
-
-  useEffect(() => {
-    if (!user) {
-      router.push("/");
-    }
-  }, [user, router]);
-
+  const filteredTasks = tasks.filter((task) => task.status === "pending");
   useEffect(() => {
     refreshTasks();
   }, []);
   if (!user) {
-    return <div>loading</div>;
+    return <LoginPrompt />;
   }
   return (
     <div className="container mx-auto p-4">
@@ -34,8 +29,8 @@ export default function TasksPage() {
         <p>Loading tasks...</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
-          {tasks.length > 0 ? (
-            tasks.map((task) => <TaskCard key={task.id} task={task} />)
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => <TaskCard key={task.id} task={task} />)
           ) : (
             <p>No tasks available.</p>
           )}
