@@ -119,6 +119,7 @@ const Navbar = () => {
           <div className="space-y-4 mt-4">
             <h2 className="text-xl font-bold">Top Up Wallet</h2>
             <div className="grid grid-cols-2 gap-4">
+              <Button onClick={() => handleTopUp(1)}>₹1</Button>
               <Button onClick={() => handleTopUp(50)}>₹50</Button>
               <Button onClick={() => handleTopUp(100)}>₹100</Button>
               <Button onClick={() => handleTopUp(200)}>₹200</Button>
