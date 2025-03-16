@@ -54,17 +54,90 @@ const Navbar = () => {
       </div>
     );
   }
-  const WalletButton = () => (
-    <Button
-      variant="outline"
-      className="flex items-center gap-2"
-      onClick={() => toast("Top-up modal coming soon!")}
-    >
-      <Wallet className="h-4 w-4" />
-      <span>{balanceloading ? "loading.." : "$" + balance}</span>
-    </Button>
-  );
+  const WalletButton = () => {
+    const handleTopUp = (amount: number) => {
+      // PhonePe specific parameters
+      const upiId = "8919579260@ybl";
+      const merchantName = encodeURIComponent("Chukka Abhishek Mahin Prabhas");
 
+      // Create payment URLs
+      const phonePeUrl = `phonepe://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Wallet%20TopUp`;
+      const upiUrl = `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Wallet%20TopUp`;
+
+      // Check if user is on mobile
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // Mobile behavior
+        try {
+          window.location.href = phonePeUrl;
+
+          // Fallback to general UPI after a delay
+          setTimeout(() => {
+            window.location.href = upiUrl;
+          }, 1000);
+        } catch (error) {
+          window.location.href = upiUrl;
+        }
+      } else {
+        // Desktop behavior - Show QR code or copy UPI ID
+        const qrContent = `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`;
+
+        // You can either:
+        // 1. Show QR code
+        // 2. Show UPI ID to copy
+        // 3. Show both options
+
+        toast.info(
+          <div className="space-y-2">
+            <p>Desktop Payment Options:</p>
+            <p>UPI ID: {upiId}</p>
+            <p>Amount: ₹{amount}</p>
+            <button
+              onClick={() => navigator.clipboard.writeText(upiId)}
+              className="text-sm text-blue-500 hover:text-blue-700"
+            >
+              Copy UPI ID
+            </button>
+          </div>,
+          {
+            duration: 10000,
+          }
+        );
+      }
+    };
+
+    return (
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button variant="outline" className="flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            <span>{balanceloading ? "loading.." : "₹" + balance}</span>
+          </Button>
+        </SheetTrigger>
+        <SheetContent>
+          <div className="space-y-4 mt-4">
+            <h2 className="text-xl font-bold">Top Up Wallet</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <Button onClick={() => handleTopUp(50)}>₹50</Button>
+              <Button onClick={() => handleTopUp(100)}>₹100</Button>
+              <Button onClick={() => handleTopUp(200)}>₹200</Button>
+              <Button onClick={() => handleTopUp(500)}>₹500</Button>
+              <Button onClick={() => handleTopUp(1000)}>₹1000</Button>
+            </div>
+            <div className="mt-4 text-sm text-gray-500">
+              <p>Test Instructions:</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Mobile: Opens PhonePe/UPI apps directly</li>
+                <li>Desktop: Shows UPI ID to copy</li>
+                <li>Amount will be added after payment verification</li>
+              </ul>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  };
   const NavItems = ({ mobile = false }) => (
     <ul
       className={`flex ${mobile ? "flex-col space-y-4" : "items-center gap-6"}`}
