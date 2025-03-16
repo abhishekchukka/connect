@@ -56,52 +56,73 @@ const Navbar = () => {
   }
   const WalletButton = () => {
     const handleTopUp = (amount: number) => {
-      // PhonePe specific parameters
+      // PhonePe details
+      const phoneNumber = "8919579260"; // Your PhonePe number
       const upiId = "8919579260@ybl";
       const merchantName = encodeURIComponent("Chukka Abhishek Mahin Prabhas");
-
-      // Create payment URLs
-      const phonePeUrl = `phonepe://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Wallet%20TopUp`;
-      const upiUrl = `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR&tn=Wallet%20TopUp`;
 
       // Check if user is on mobile
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       if (isMobile) {
-        // Mobile behavior
-        try {
-          window.location.href = phonePeUrl;
-
-          // Fallback to general UPI after a delay
-          setTimeout(() => {
-            window.location.href = upiUrl;
-          }, 1000);
-        } catch (error) {
-          window.location.href = upiUrl;
-        }
-      } else {
-        // Desktop behavior - Show QR code or copy UPI ID
-        const qrContent = `upi://pay?pa=${upiId}&pn=${merchantName}&am=${amount}&cu=INR`;
-
-        // You can either:
-        // 1. Show QR code
-        // 2. Show UPI ID to copy
-        // 3. Show both options
-
+        // Mobile behavior - Show options dialog
         toast.info(
-          <div className="space-y-2">
-            <p>Desktop Payment Options:</p>
-            <p>UPI ID: {upiId}</p>
-            <p>Amount: ₹{amount}</p>
-            <button
-              onClick={() => navigator.clipboard.writeText(upiId)}
-              className="text-sm text-blue-500 hover:text-blue-700"
-            >
-              Copy UPI ID
-            </button>
+          <div className="space-y-3">
+            <p className="font-medium">Choose Payment Method:</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  window.location.href = `tel:${phoneNumber}`;
+                }}
+                className="w-full py-2 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                Pay via PhonePe Number
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(upiId);
+                  toast.success("UPI ID copied!");
+                }}
+                className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Copy UPI ID
+              </button>
+              <div className="text-sm text-gray-600 mt-2">
+                <p>Amount to Pay: ₹{amount}</p>
+                <p>UPI ID: {upiId}</p>
+                <p>Phone: {phoneNumber}</p>
+              </div>
+            </div>
           </div>,
           {
-            duration: 10000,
+            duration: 20000,
+          }
+        );
+      } else {
+        // Desktop behavior
+        toast.info(
+          <div className="space-y-2">
+            <p className="font-medium">Desktop Payment Options:</p>
+            <p>UPI ID: {upiId}</p>
+            <p>Phone: {phoneNumber}</p>
+            <p>Amount: ₹{amount}</p>
+            <div className="space-y-2 mt-2">
+              <button
+                onClick={() => navigator.clipboard.writeText(upiId)}
+                className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+              >
+                Copy UPI ID
+              </button>
+              <button
+                onClick={() => navigator.clipboard.writeText(phoneNumber)}
+                className="text-sm bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 ml-2"
+              >
+                Copy Phone Number
+              </button>
+            </div>
+          </div>,
+          {
+            duration: 20000,
           }
         );
       }
@@ -127,11 +148,11 @@ const Navbar = () => {
               <Button onClick={() => handleTopUp(1000)}>₹1000</Button>
             </div>
             <div className="mt-4 text-sm text-gray-500">
-              <p>Test Instructions:</p>
+              <p>Payment Instructions:</p>
               <ul className="list-disc pl-4 space-y-1">
-                <li>Mobile: Opens PhonePe/UPI apps directly</li>
-                <li>Desktop: Shows UPI ID to copy</li>
-                <li>Amount will be added after payment verification</li>
+                <li>Use PhonePe number or UPI ID to pay</li>
+                <li>Add note: "Wallet TopUp"</li>
+                <li>Balance will update after verification</li>
               </ul>
             </div>
           </div>
