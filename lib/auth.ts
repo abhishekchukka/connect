@@ -6,7 +6,14 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { auth, db } from "./firebaseConfig";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 // Signup with Email
 export const signUp = async (email: string, password: string) => {
   // 🔍 Check if the email is already registered
