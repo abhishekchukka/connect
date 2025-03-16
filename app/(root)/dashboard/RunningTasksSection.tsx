@@ -73,6 +73,14 @@ const RunningTasksSection = ({
         completedTasks: arrayUnion(taskId),
       });
 
+      // Trigger immediate wallet refresh in parent component
+      if (typeof window !== "undefined") {
+        const event = new CustomEvent("walletUpdated", {
+          detail: { userId: assignedTo },
+        });
+        window.dispatchEvent(event);
+      }
+
       toast.success("Task verified and reward transferred!");
     } catch (error) {
       toast.error("Failed to verify task");

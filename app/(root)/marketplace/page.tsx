@@ -17,7 +17,11 @@ export default function TasksPage() {
   const filteredTasks = tasks.filter((task) => task.status === "pending");
   useEffect(() => {
     refreshTasks();
-  }, []);
+    const IntervalId = setInterval(() => {
+      refreshTasks();
+    }, 3000);
+    return () => clearInterval(IntervalId);
+  }, [refreshTasks, tasks]);
   if (!user) {
     return <LoginPrompt />;
   }

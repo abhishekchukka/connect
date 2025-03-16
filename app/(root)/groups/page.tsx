@@ -36,11 +36,22 @@ export default function ActiveGroups() {
   ];
 
   useEffect(() => {
+    // Initial fetch
     getGroups();
-  }, [showCreateForm]);
+
+    // Set up periodic refresh every 3 seconds
+    const intervalId = setInterval(() => {
+      getGroups();
+    }, 3000);
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [getGroups, showCreateForm]); // Added getGroups to dependency array
+
   if (!user) {
     return <LoginPrompt />;
   }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 🔍 Search & Filter Section */}

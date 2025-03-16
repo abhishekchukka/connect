@@ -35,6 +35,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   loading: boolean;
   updateUser: (data: Partial<UserData>, place?: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -44,6 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   loading: true,
   updateUser: async () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -137,6 +139,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       toast.error("Failed to sign in with Google");
     }
   };
+  const refreshUser = async () => {
+    try {
+      if (!user) {
+        console.warn("Cannot refresh user data: No user is logged in");
+        return;
+      }
+
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        setUserData(userSnap.data() as UserData);
+      } else {
+        console.warn("User document not found in Firestore");
+      }
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+      toast.error("Failed to refresh user data");
+    }
+  };
 
   const logout = async () => {
     try {
@@ -152,7 +174,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, userData, signInWithGoogle, logout, loading, updateUser }}
+      value={{
+        user,
+        userData,
+        signInWithGoogle,
+        logout,
+        loading,
+        updateUser,
+        refreshUser,
+      }}
     >
       {children}
     </AuthContext.Provider>
