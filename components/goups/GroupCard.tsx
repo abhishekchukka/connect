@@ -16,12 +16,21 @@ import {
 import { group } from "@/lib/type";
 import { Calendar, Clock, MapPin, Users, Trash2, Info } from "lucide-react";
 import { motion } from "framer-motion";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getUserFromDB } from "@/lib/firebaseutils";
 
 interface GroupCardProps {
   group: group;
   onJoinToggle: (groupId: string) => void;
   onDelete: (groupId: string) => void;
   userId?: string;
+}
+
+interface GroupMember {
+  id: string;
+  name: string;
+  image?: string;
 }
 
 const GroupCard = ({
@@ -32,6 +41,52 @@ const GroupCard = ({
 }: GroupCardProps) => {
   const isCreator = userId === group.creator;
   const isFull = group.memberCount >= group.maxMembers;
+  const [creatorInfo, setCreatorInfo] = useState<GroupMember | null>(null);
+  const [memberInfo, setMemberInfo] = useState<GroupMember[]>([]);
+
+  // Fetch creator info
+  useEffect(() => {
+    const fetchCreator = async () => {
+      if (group.creator) {
+        const creator = await getUserFromDB(group.creator);
+        if (creator) {
+          setCreatorInfo({
+            id: creator.id,
+            name: creator.name,
+            image: creator.image,
+          });
+        }
+      }
+    };
+
+    fetchCreator();
+  }, [group.creator]);
+
+  // Fetch member info for IDs
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (group.joinedPeople && group.joinedPeople.length > 0) {
+        const members = await Promise.all(
+          group.joinedPeople.map(async (memberId: string) => {
+            const member = await getUserFromDB(memberId);
+            if (member) {
+              return {
+                id: member.id,
+                name: member.name,
+                image: member.image,
+              };
+            }
+            return null;
+          })
+        );
+
+        setMemberInfo(members.filter((m): m is GroupMember => m !== null));
+      }
+    };
+
+    fetchMembers();
+  }, [group.joinedPeople]);
+
   const isExpired = () => {
     const now = new Date();
     const expiryDateTime = new Date(`${group.expiryDate}T${group.expiryTime}`);
@@ -110,7 +165,16 @@ const GroupCard = ({
                 <Users className="h-4 w-4 mr-2 text-gray-500" />
                 <div>
                   <p className="text-xs text-gray-500">Creator</p>
-                  <p className="font-medium">{group.creatorName}</p>
+                  {creatorInfo ? (
+                    <Link
+                      href={`/profile/${group.creator}`}
+                      className="font-medium hover:text-primary-600 hover:underline transition-colors"
+                    >
+                      {creatorInfo.name}
+                    </Link>
+                  ) : (
+                    <p className="font-medium">{group.creatorName}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -136,43 +200,65 @@ const GroupCard = ({
             </div>
           </div>
 
-          {/* Members Section */}
+          {/* Members Section - Updated with profile links */}
           {group.joinedUserNames.length > 0 && (
             <div className="border-t pt-4">
               <p className="text-sm text-gray-500 mb-3">Members</p>
-              <div className="flex items-center">
-                <div className="flex -space-x-2 mr-3">
-                  {group.joinedUserNames.slice(0, 3).map((name, i) => (
-                    <TooltipProvider key={i}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 
-                                     border-2 border-white flex items-center justify-center
-                                     shadow-sm hover:scale-105 transition-transform"
-                          >
-                            <span className="text-xs font-medium text-white">
-                              {name[0].toUpperCase()}
-                            </span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ))}
-                  {group.joinedUserNames.length > 3 && (
-                    <div
-                      className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white 
-                                  flex items-center justify-center shadow-sm"
+              <div className="flex flex-wrap gap-2">
+                {/* Use memberInfo if available, otherwise fall back to joinedUserNames */}
+                {memberInfo.length > 0 ? (
+                  memberInfo.map((member) => (
+                    <Link
+                      key={member.id}
+                      href={`/profile/${member.id}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-full text-xs border border-gray-200 hover:bg-primary-50 hover:border-primary-200 transition-colors"
                     >
-                      <span className="text-xs font-medium text-gray-600">
-                        +{group.joinedUserNames.length - 3}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                      <div
+                        className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 
+                                border-2 border-white flex items-center justify-center
+                                shadow-sm"
+                      >
+                        <span className="text-xs font-medium text-white">
+                          {member.name[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <span>{member.name}</span>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="flex -space-x-2 mr-3">
+                    {group.joinedUserNames.slice(0, 3).map((name, i) => (
+                      <TooltipProvider key={i}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 
+                                       border-2 border-white flex items-center justify-center
+                                       shadow-sm hover:scale-105 transition-transform"
+                            >
+                              <span className="text-xs font-medium text-white">
+                                {name[0].toUpperCase()}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{name}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                    {group.joinedUserNames.length > 3 && (
+                      <div
+                        className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white 
+                                    flex items-center justify-center shadow-sm"
+                      >
+                        <span className="text-xs font-medium text-gray-600">
+                          +{group.joinedUserNames.length - 3}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

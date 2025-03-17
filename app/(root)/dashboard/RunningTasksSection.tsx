@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/context/AuthProvider";
 import { db } from "@/lib/firebaseConfig";
 import { getUserFromDB } from "@/lib/firebaseutils";
 import { arrayUnion, doc, increment, updateDoc } from "firebase/firestore";
+import { Link } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { FaCheck } from "react-icons/fa";
@@ -129,14 +130,18 @@ const RunningTasksSection = ({
                     </p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <Image
-                          src={assignedUser.image || "/default-avatar.png"}
-                          alt={assignedUser.name}
-                          width={32}
-                          height={32}
-                          className="rounded-full"
-                        />
-                        <span className="font-medium">{assignedUser.name}</span>
+                        <Link href={`/profile/${assignedUser.uid}`}>
+                          <Image
+                            src={assignedUser.image || "/default-avatar.png"}
+                            alt={assignedUser.name}
+                            width={32}
+                            height={32}
+                            className="rounded-full"
+                          />
+                          <span className="font-medium">
+                            {assignedUser.name}
+                          </span>
+                        </Link>
                       </div>
 
                       {/* Action Buttons */}

@@ -3,6 +3,7 @@ import { db } from "@/lib/firebaseConfig";
 import { getUserFromDB } from "@/lib/firebaseutils";
 import { doc, updateDoc } from "firebase/firestore";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FaCheck } from "react-icons/fa";
 import { toast } from "sonner";
@@ -92,17 +93,20 @@ const AssignedTasksSection = ({
                       Task Creator:
                     </p>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Image
-                          src={creatorUser.image || "/default-avatar.png"}
-                          alt={creatorUser.name}
-                          width={32}
-                          height={32}
-                          className="rounded-full"
-                        />
-                        <span className="font-medium">{creatorUser.name}</span>
-                      </div>
-
+                      <Link href={`/profile/${creatorUser.uid}`}>
+                        <div className="flex items-center space-x-3">
+                          <Image
+                            src={creatorUser.image || "/default-avatar.png"}
+                            alt={creatorUser.name}
+                            width={32}
+                            height={32}
+                            className="rounded-full"
+                          />
+                          <span className="font-medium">
+                            {creatorUser.name}
+                          </span>
+                        </div>
+                      </Link>
                       {/* Complete Task Button */}
                       {!task.completedByUser && (
                         <button

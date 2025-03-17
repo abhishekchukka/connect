@@ -6,6 +6,8 @@ import Navbar from "../components/ui/Navbar";
 import { Toaster } from "@/components/ui/sonner";
 import { GroupProvider } from "@/lib/context/GroupContext";
 import { TaskProvider } from "@/lib/context/TaskContext";
+import { Wallet } from "lucide-react";
+import { WalletProvider } from "@/lib/context/WalletProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,15 +33,17 @@ export default function RootLayout({
     <AuthProvider>
       <GroupProvider>
         <TaskProvider>
-          <html lang="en">
-            <body
-              className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-            >
-              <Navbar />
-              {children}
-              <Toaster />
-            </body>
-          </html>
+          <WalletProvider>
+            <html lang="en">
+              <body
+                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+              >
+                <Navbar />
+                {children}
+                <Toaster />
+              </body>
+            </html>
+          </WalletProvider>
         </TaskProvider>
       </GroupProvider>
     </AuthProvider>
