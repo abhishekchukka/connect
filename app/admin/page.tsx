@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 
 // Admin user ID - replace with your admin user ID
-const ADMIN_USER_ID = "rOloBGAk5UY7r8vLsgBIlrJMjcE3";
+const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID!;
 
 interface Transaction {
   id: string;
