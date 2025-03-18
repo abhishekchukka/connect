@@ -10,7 +10,14 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebaseConfig";
-import { CheckCircle, XCircle, Clock, ArrowLeft } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  ArrowLeft,
+  ArrowDownToLine,
+  Wallet,
+} from "lucide-react";
 import LoginPrompt from "@/components/ui/loginBanner";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -23,11 +30,16 @@ interface Transaction {
   userName: string;
   userEmail: string;
   amount: number;
-  utrNumber: string;
-  status: "pending" | "approved" | "rejected";
+  utrNumber?: string;
+  status: "pending" | "approved" | "rejected" | "completed";
+  type: "deposit" | "withdrawal";
   createdAt: Timestamp;
   updatedAt: Timestamp | null;
   adminComment: string | null;
+  platformFee?: number;
+  finalAmount?: number;
+  upiId?: string;
+  requestedAmount?: number;
 }
 
 export default function TransactionsPage() {
@@ -37,45 +49,82 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<
-    "all" | "pending" | "approved" | "rejected"
+    | "all"
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "completed"
+    | "deposits"
+    | "withdrawals"
   >("all");
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch user transactions
+  // Fetch user transactions and withdrawals
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchTransactionsAndWithdrawals = async () => {
       if (!user) return;
 
       try {
-        // Simple query without orderBy to avoid index issues
-        const q = query(
+        setLoading(true);
+
+        // Fetch deposit transactions
+        const transactionsQuery = query(
           collection(db, "transactions"),
           where("userId", "==", user.uid)
         );
-
-        const querySnapshot = await getDocs(q);
+        const transactionsSnapshot = await getDocs(transactionsQuery);
         const transactionsData: Transaction[] = [];
 
-        querySnapshot.forEach((doc) => {
+        transactionsSnapshot.forEach((doc) => {
           transactionsData.push({
+            id: doc.id,
+            type: "deposit", // Ensure all transactions have type
+            ...doc.data(),
+          } as Transaction);
+        });
+
+        // Fetch withdrawal transactions
+        const withdrawalsQuery = query(
+          collection(db, "withdrawals"),
+          where("userId", "==", user.uid)
+        );
+        const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
+        const withdrawalsData: Transaction[] = [];
+
+        withdrawalsSnapshot.forEach((doc) => {
+          withdrawalsData.push({
             id: doc.id,
             ...doc.data(),
           } as Transaction);
         });
 
-        // Sort manually in JavaScript
-        transactionsData.sort((a, b) => {
+        // Combine both types of transactions
+        let allTransactions = [...transactionsData, ...withdrawalsData];
+
+        // Sort by creation date (newest first)
+        allTransactions.sort((a, b) => {
           if (!a.createdAt || !b.createdAt) return 0;
           return b.createdAt.seconds - a.createdAt.seconds;
         });
 
-        // Filter by status if needed
-        const filteredData =
-          filter === "all"
-            ? transactionsData
-            : transactionsData.filter((t) => t.status === filter);
+        // Apply filters
+        if (filter !== "all") {
+          if (filter === "deposits") {
+            allTransactions = allTransactions.filter(
+              (t) => t.type === "deposit"
+            );
+          } else if (filter === "withdrawals") {
+            allTransactions = allTransactions.filter(
+              (t) => t.type === "withdrawal"
+            );
+          } else {
+            allTransactions = allTransactions.filter(
+              (t) => t.status === filter
+            );
+          }
+        }
 
-        setTransactions(filteredData);
+        setTransactions(allTransactions);
         setError(null);
       } catch (error) {
         console.error("Error fetching transactions:", error);
@@ -85,7 +134,7 @@ export default function TransactionsPage() {
       }
     };
 
-    fetchTransactions();
+    fetchTransactionsAndWithdrawals();
   }, [user, filter]);
 
   const handleTopUpClick = () => {
@@ -116,45 +165,65 @@ export default function TransactionsPage() {
             <h2 className="text-lg font-medium">Wallet Balance</h2>
             <p className="text-3xl font-bold">₹{userData?.wallet || 0}</p>
           </div>
-          <Button onClick={handleTopUpClick}>Top Up Wallet</Button>
+          <Button onClick={handleTopUpClick}>Manage Wallet</Button>
         </div>
       </div>
 
       {/* Filter Controls */}
-      <div className="mb-6 flex flex-wrap gap-4">
+      <div className="mb-6 flex flex-wrap gap-2">
         <button
-          className={`px-4 py-2 rounded-md ${
+          className={`px-3 py-2 rounded-md text-sm ${
             filter === "all" ? "bg-blue-500 text-white" : "bg-gray-100"
           }`}
           onClick={() => setFilter("all")}
         >
-          All Transactions
+          All
         </button>
         <button
-          className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-md text-sm flex items-center gap-1 ${
+            filter === "deposits" ? "bg-blue-500 text-white" : "bg-gray-100"
+          }`}
+          onClick={() => setFilter("deposits")}
+        >
+          <Wallet className="h-3 w-3" />
+          Deposits
+        </button>
+        <button
+          className={`px-3 py-2 rounded-md text-sm flex items-center gap-1 ${
+            filter === "withdrawals" ? "bg-blue-500 text-white" : "bg-gray-100"
+          }`}
+          onClick={() => setFilter("withdrawals")}
+        >
+          <ArrowDownToLine className="h-3 w-3" />
+          Withdrawals
+        </button>
+        <button
+          className={`px-3 py-2 rounded-md text-sm flex items-center gap-1 ${
             filter === "pending" ? "bg-yellow-500 text-white" : "bg-gray-100"
           }`}
           onClick={() => setFilter("pending")}
         >
-          <Clock className="h-4 w-4" />
+          <Clock className="h-3 w-3" />
           Pending
         </button>
         <button
-          className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-            filter === "approved" ? "bg-green-500 text-white" : "bg-gray-100"
+          className={`px-3 py-2 rounded-md text-sm flex items-center gap-1 ${
+            filter === "approved" || filter === "completed"
+              ? "bg-green-500 text-white"
+              : "bg-gray-100"
           }`}
           onClick={() => setFilter("approved")}
         >
-          <CheckCircle className="h-4 w-4" />
-          Approved
+          <CheckCircle className="h-3 w-3" />
+          Completed
         </button>
         <button
-          className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-md text-sm flex items-center gap-1 ${
             filter === "rejected" ? "bg-red-500 text-white" : "bg-gray-100"
           }`}
           onClick={() => setFilter("rejected")}
         >
-          <XCircle className="h-4 w-4" />
+          <XCircle className="h-3 w-3" />
           Rejected
         </button>
       </div>
@@ -182,34 +251,67 @@ export default function TransactionsPage() {
           <p className="text-gray-500 mb-4">No transactions found</p>
           <p className="text-sm text-gray-400 mb-6">
             {filter !== "all"
-              ? `You don't have any ${filter} transactions.`
+              ? `You don't have any ${
+                  filter === "deposits"
+                    ? "deposit"
+                    : filter === "withdrawals"
+                    ? "withdrawal"
+                    : filter
+                } transactions.`
               : "Start by adding money to your wallet."}
           </p>
-          <Button onClick={handleTopUpClick}>Top Up Wallet</Button>
+          <Button onClick={handleTopUpClick}>Manage Wallet</Button>
         </div>
       ) : (
         <div className="space-y-4">
           {transactions.map((transaction) => (
             <div
               key={transaction.id}
-              className="bg-white p-5 rounded-lg shadow-sm border hover:shadow-md transition-shadow"
+              className={`bg-white p-5 rounded-lg shadow-sm border hover:shadow-md transition-shadow ${
+                transaction.type === "withdrawal"
+                  ? "border-l-4 border-l-purple-400"
+                  : ""
+              }`}
             >
               <div className="flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
+                    {/* Transaction type indicator */}
+                    {transaction.type === "deposit" ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <Wallet className="mr-1 h-3 w-3" />
+                        Deposit
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <ArrowDownToLine className="mr-1 h-3 w-3" />
+                        Withdrawal
+                      </span>
+                    )}
+
+                    {/* Amount */}
                     <span className="text-lg font-medium">
-                      ₹{transaction.amount}
+                      {transaction.type === "deposit"
+                        ? `₹${transaction.amount}`
+                        : `₹${
+                            transaction.requestedAmount || transaction.amount
+                          }`}
                     </span>
+
+                    {/* Status badge */}
                     {transaction.status === "pending" && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                         <Clock className="mr-1 h-3 w-3" />
                         Pending
                       </span>
                     )}
-                    {transaction.status === "approved" && (
+                    {(transaction.status === "approved" ||
+                      transaction.status === "completed") && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <CheckCircle className="mr-1 h-3 w-3" />
-                        Approved
+                        {transaction.type === "deposit"
+                          ? "Approved"
+                          : "Completed"}
                       </span>
                     )}
                     {transaction.status === "rejected" && (
@@ -219,13 +321,38 @@ export default function TransactionsPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">
-                    Transaction ID:{" "}
-                    <span className="font-mono">{transaction.utrNumber}</span>
-                  </p>
+
+                  {/* Transaction details */}
+                  {transaction.type === "deposit" && transaction.utrNumber && (
+                    <p className="text-sm text-gray-500 mb-1">
+                      Transaction ID:{" "}
+                      <span className="font-mono">{transaction.utrNumber}</span>
+                    </p>
+                  )}
+
+                  {transaction.type === "withdrawal" && transaction.upiId && (
+                    <p className="text-sm text-gray-500 mb-1">
+                      UPI ID:{" "}
+                      <span className="font-mono">{transaction.upiId}</span>
+                    </p>
+                  )}
+
+                  {transaction.type === "withdrawal" && (
+                    <div className="text-sm text-gray-500 mb-1">
+                      <span>Amount: ₹{transaction.requestedAmount} </span>
+                      {transaction.platformFee && (
+                        <span className="text-xs">
+                          (Fee: ₹{transaction.platformFee}, Net: ₹
+                          {transaction.finalAmount})
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-sm text-gray-500">
                     Date: {transaction.createdAt?.toDate().toLocaleString()}
                   </p>
+
                   {transaction.adminComment && (
                     <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-100">
                       <p className="text-sm">
@@ -235,16 +362,29 @@ export default function TransactionsPage() {
                     </div>
                   )}
                 </div>
+
                 <div className="text-right">
                   {transaction.status === "pending" ? (
                     <p className="text-sm text-yellow-600">
-                      Awaiting verification
+                      {transaction.type === "deposit"
+                        ? "Awaiting verification"
+                        : "Processing withdrawal"}
                     </p>
-                  ) : transaction.status === "approved" ? (
-                    <p className="text-sm text-green-600">Added to wallet</p>
+                  ) : transaction.status === "approved" ||
+                    transaction.status === "completed" ? (
+                    <p className="text-sm text-green-600">
+                      {transaction.type === "deposit"
+                        ? "Added to wallet"
+                        : "Withdrawal completed"}
+                    </p>
                   ) : (
-                    <p className="text-sm text-red-600">Not processed</p>
+                    <p className="text-sm text-red-600">
+                      {transaction.type === "deposit"
+                        ? "Deposit rejected"
+                        : "Withdrawal rejected"}
+                    </p>
                   )}
+
                   {transaction.updatedAt && (
                     <p className="text-xs text-gray-400 mt-1">
                       Updated: {transaction.updatedAt.toDate().toLocaleString()}

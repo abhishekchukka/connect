@@ -5,8 +5,18 @@ import { motion } from "framer-motion";
 import { CalendarClock, Construction, Rocket } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/context/AuthProvider";
+import GridLoader from "react-spinners/GridLoader";
 
 const ServicesPage = () => {
+  const { loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="absolute inset-0 bg-white flex items-center justify-center">
+        <GridLoader />
+      </div>
+    );
+  }
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <motion.div

@@ -18,32 +18,59 @@ import {
 import { db } from "@/lib/firebaseConfig";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, Clock } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Loader2,
+} from "lucide-react";
 
 // Admin user ID - replace with your admin user ID
 const ADMIN_USER_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID!;
 
-interface Transaction {
+interface BaseTransaction {
   id: string;
   userId: string;
   userName: string;
   userEmail: string;
   amount: number;
-  utrNumber: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "completed";
   createdAt: Timestamp;
   updatedAt: Timestamp | null;
   adminComment: string | null;
 }
+
+interface DepositTransaction extends BaseTransaction {
+  type: "deposit";
+  utrNumber: string;
+}
+
+interface WithdrawalTransaction extends BaseTransaction {
+  type: "withdrawal";
+  requestedAmount: number;
+  platformFee: number;
+  finalAmount: number;
+  upiId: string;
+}
+
+type Transaction = DepositTransaction | WithdrawalTransaction;
 
 export default function AdminPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<
-    "all" | "pending" | "approved" | "rejected"
+  const [processingTransactions, setProcessingTransactions] = useState<
+    Set<string>
+  >(new Set());
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "approved" | "rejected" | "completed"
   >("pending");
+  const [typeFilter, setTypeFilter] = useState<
+    "all" | "deposit" | "withdrawal"
+  >("all");
 
   // Check if user is admin
   useEffect(() => {
@@ -53,50 +80,103 @@ export default function AdminPage() {
     }
   }, [user, router]);
 
-  // Fetch transactions
+  // Fetch transactions and withdrawals
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       if (!user) return;
 
       try {
-        let q;
-        if (filter === "all") {
-          q = query(collection(db, "transactions"));
-        } else {
-          q = query(
-            collection(db, "transactions"),
-            where("status", "==", filter)
+        setLoading(true);
+        const allData: Transaction[] = [];
+
+        // Fetch deposits from transactions collection
+        let transactionsQuery = collection(db, "transactions");
+        if (statusFilter !== "all") {
+          transactionsQuery = query(
+            transactionsQuery,
+            where("status", "==", statusFilter)
           );
         }
 
-        const querySnapshot = await getDocs(q);
-        const transactionsData: Transaction[] = [];
-
-        querySnapshot.forEach((doc) => {
-          transactionsData.push({
-            id: doc.id,
-            ...doc.data(),
-          } as Transaction);
+        const transactionsSnapshot = await getDocs(transactionsQuery);
+        transactionsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (typeFilter === "all" || typeFilter === "deposit") {
+            allData.push({
+              id: doc.id,
+              ...data,
+              type: "deposit",
+            } as DepositTransaction);
+          }
         });
 
-        setTransactions(transactionsData);
+        // Fetch withdrawals from withdrawals collection
+        let withdrawalsQuery = collection(db, "withdrawals");
+        if (statusFilter !== "all") {
+          // Map "approved" to "completed" for withdrawals if needed
+          const withdrawalStatus =
+            statusFilter === "approved" ? "completed" : statusFilter;
+          withdrawalsQuery = query(
+            withdrawalsQuery,
+            where("status", "==", withdrawalStatus)
+          );
+        }
+
+        const withdrawalsSnapshot = await getDocs(withdrawalsQuery);
+        withdrawalsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (typeFilter === "all" || typeFilter === "withdrawal") {
+            allData.push({
+              id: doc.id,
+              ...data,
+              amount: data.finalAmount, // Use finalAmount as the display amount
+              type: "withdrawal",
+            } as WithdrawalTransaction);
+          }
+        });
+
+        // Sort by createdAt (newest first)
+        allData.sort((a, b) => {
+          const dateA = a.createdAt?.toDate() || new Date(0);
+          const dateB = b.createdAt?.toDate() || new Date(0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        setTransactions(allData);
       } catch (error) {
-        console.error("Error fetching transactions:", error);
+        console.error("Error fetching data:", error);
         toast.error("Failed to load transactions");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransactions();
-  }, [user, filter]);
+    fetchData();
+  }, [user, statusFilter, typeFilter]);
 
-  const handleApprove = async (transaction: Transaction) => {
+  const handleApproveDeposit = async (transaction: DepositTransaction) => {
     if (!user) return;
 
+    // Prevent double processing
+    if (processingTransactions.has(transaction.id)) {
+      return;
+    }
+
     try {
-      // Update transaction status
+      // Mark this transaction as being processed
+      setProcessingTransactions((prev) => new Set(prev).add(transaction.id));
+
+      // Double-check current status to prevent double processing
       const transactionRef = doc(db, "transactions", transaction.id);
+      const currentDoc = await getDoc(transactionRef);
+      const currentData = currentDoc.data();
+
+      if (!currentDoc.exists() || currentData?.status !== "pending") {
+        toast.error("This transaction has already been processed");
+        return;
+      }
+
+      // Update transaction status
       await updateDoc(transactionRef, {
         status: "approved",
         updatedAt: new Date(),
@@ -127,17 +207,111 @@ export default function AdminPage() {
         )
       );
     } catch (error) {
-      console.error("Error approving transaction:", error);
-      toast.error("Failed to approve transaction");
+      console.error("Error approving deposit:", error);
+      toast.error("Failed to approve deposit");
+    } finally {
+      // Remove from processing set
+      setProcessingTransactions((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(transaction.id);
+        return newSet;
+      });
     }
   };
 
-  const handleReject = async (transaction: Transaction, reason: string) => {
+  const handleApproveWithdrawal = async (
+    transaction: WithdrawalTransaction
+  ) => {
     if (!user) return;
 
+    // Prevent double processing
+    if (processingTransactions.has(transaction.id)) {
+      return;
+    }
+
     try {
-      // Update transaction status
+      // Mark this transaction as being processed
+      setProcessingTransactions((prev) => new Set(prev).add(transaction.id));
+
+      // Double-check current status to prevent double processing
+      const withdrawalRef = doc(db, "withdrawals", transaction.id);
+      const currentDoc = await getDoc(withdrawalRef);
+      const currentData = currentDoc.data();
+
+      if (!currentDoc.exists() || currentData?.status !== "pending") {
+        toast.error("This withdrawal has already been processed");
+        return;
+      }
+
+      // Update withdrawal status
+      await updateDoc(withdrawalRef, {
+        status: "completed",
+        updatedAt: new Date(),
+        adminComment: "Withdrawal processed successfully",
+      });
+
+      // Decrement the requested amount from user's wallet
+      const userRef = doc(db, "users", transaction.userId);
+      await updateDoc(userRef, {
+        wallet: increment(-transaction.requestedAmount),
+      });
+
+      toast.success(
+        `Approved ₹${transaction.finalAmount} withdrawal for ${transaction.userName}`
+      );
+
+      // Update local state
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === transaction.id
+            ? {
+                ...t,
+                status: "completed",
+                updatedAt: Timestamp.now(),
+                adminComment: "Withdrawal processed successfully",
+              }
+            : t
+        )
+      );
+    } catch (error) {
+      console.error("Error approving withdrawal:", error);
+      toast.error("Failed to approve withdrawal");
+    } finally {
+      // Remove from processing set
+      setProcessingTransactions((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(transaction.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRejectDeposit = async (
+    transaction: DepositTransaction,
+    reason: string
+  ) => {
+    if (!user) return;
+
+    // Prevent double processing
+    if (processingTransactions.has(transaction.id)) {
+      return;
+    }
+
+    try {
+      // Mark this transaction as being processed
+      setProcessingTransactions((prev) => new Set(prev).add(transaction.id));
+
+      // Double-check current status to prevent double processing
       const transactionRef = doc(db, "transactions", transaction.id);
+      const currentDoc = await getDoc(transactionRef);
+      const currentData = currentDoc.data();
+
+      if (!currentDoc.exists() || currentData?.status !== "pending") {
+        toast.error("This transaction has already been processed");
+        return;
+      }
+
+      // Update transaction status
       await updateDoc(transactionRef, {
         status: "rejected",
         updatedAt: new Date(),
@@ -160,8 +334,83 @@ export default function AdminPage() {
         )
       );
     } catch (error) {
-      console.error("Error rejecting transaction:", error);
-      toast.error("Failed to reject transaction");
+      console.error("Error rejecting deposit:", error);
+      toast.error("Failed to reject deposit");
+    } finally {
+      // Remove from processing set
+      setProcessingTransactions((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(transaction.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRejectWithdrawal = async (
+    transaction: WithdrawalTransaction,
+    reason: string
+  ) => {
+    if (!user) return;
+
+    // Prevent double processing
+    if (processingTransactions.has(transaction.id)) {
+      return;
+    }
+
+    try {
+      // Mark this transaction as being processed
+      setProcessingTransactions((prev) => new Set(prev).add(transaction.id));
+
+      // Double-check current status to prevent double processing
+      const withdrawalRef = doc(db, "withdrawals", transaction.id);
+      const currentDoc = await getDoc(withdrawalRef);
+      const currentData = currentDoc.data();
+
+      if (!currentDoc.exists() || currentData?.status !== "pending") {
+        toast.error("This withdrawal has already been processed");
+        return;
+      }
+
+      // Update withdrawal status
+      await updateDoc(withdrawalRef, {
+        status: "rejected",
+        updatedAt: new Date(),
+        adminComment: reason || "Withdrawal request rejected",
+      });
+
+      // Refund the amount to user's wallet
+      const userRef = doc(db, "users", transaction.userId);
+      await updateDoc(userRef, {
+        wallet: increment(transaction.requestedAmount),
+      });
+
+      toast.success(
+        `Rejected withdrawal and refunded ₹${transaction.requestedAmount} to ${transaction.userName}`
+      );
+
+      // Update local state
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === transaction.id
+            ? {
+                ...t,
+                status: "rejected",
+                updatedAt: Timestamp.now(),
+                adminComment: reason || "Withdrawal request rejected",
+              }
+            : t
+        )
+      );
+    } catch (error) {
+      console.error("Error rejecting withdrawal:", error);
+      toast.error("Failed to reject withdrawal");
+    } finally {
+      // Remove from processing set
+      setProcessingTransactions((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(transaction.id);
+        return newSet;
+      });
     }
   };
 
@@ -184,34 +433,61 @@ export default function AdminPage() {
       </h1>
 
       {/* Filter Controls */}
-      <div className="mb-6 flex gap-4">
-        <Button
-          variant={filter === "pending" ? "default" : "outline"}
-          onClick={() => setFilter("pending")}
-        >
-          <Clock className="mr-2 h-4 w-4" />
-          Pending
-        </Button>
-        <Button
-          variant={filter === "approved" ? "default" : "outline"}
-          onClick={() => setFilter("approved")}
-        >
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Approved
-        </Button>
-        <Button
-          variant={filter === "rejected" ? "default" : "outline"}
-          onClick={() => setFilter("rejected")}
-        >
-          <XCircle className="mr-2 h-4 w-4" />
-          Rejected
-        </Button>
-        <Button
-          variant={filter === "all" ? "default" : "outline"}
-          onClick={() => setFilter("all")}
-        >
-          All
-        </Button>
+      <div className="mb-6">
+        <div className="flex gap-4 mb-4">
+          <h2 className="text-lg font-semibold">Transaction Type:</h2>
+          <Button
+            variant={typeFilter === "all" ? "default" : "outline"}
+            onClick={() => setTypeFilter("all")}
+          >
+            All Types
+          </Button>
+          <Button
+            variant={typeFilter === "deposit" ? "default" : "outline"}
+            onClick={() => setTypeFilter("deposit")}
+          >
+            <ArrowUpCircle className="mr-2 h-4 w-4" />
+            Deposits
+          </Button>
+          <Button
+            variant={typeFilter === "withdrawal" ? "default" : "outline"}
+            onClick={() => setTypeFilter("withdrawal")}
+          >
+            <ArrowDownCircle className="mr-2 h-4 w-4" />
+            Withdrawals
+          </Button>
+        </div>
+
+        <div className="flex gap-4">
+          <h2 className="text-lg font-semibold">Status:</h2>
+          <Button
+            variant={statusFilter === "pending" ? "default" : "outline"}
+            onClick={() => setStatusFilter("pending")}
+          >
+            <Clock className="mr-2 h-4 w-4" />
+            Pending
+          </Button>
+          <Button
+            variant={statusFilter === "approved" ? "default" : "outline"}
+            onClick={() => setStatusFilter("approved")}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Approved
+          </Button>
+          <Button
+            variant={statusFilter === "rejected" ? "default" : "outline"}
+            onClick={() => setStatusFilter("rejected")}
+          >
+            <XCircle className="mr-2 h-4 w-4" />
+            Rejected
+          </Button>
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            onClick={() => setStatusFilter("all")}
+          >
+            All Statuses
+          </Button>
+        </div>
       </div>
 
       {/* Transactions Table */}
@@ -220,7 +496,8 @@ export default function AdminPage() {
       ) : transactions.length === 0 ? (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
           <p className="text-gray-500">
-            No {filter !== "all" ? filter : ""} transactions found
+            No {statusFilter !== "all" ? statusFilter : ""}
+            {typeFilter !== "all" ? " " + typeFilter : ""} transactions found
           </p>
         </div>
       ) : (
@@ -229,8 +506,9 @@ export default function AdminPage() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-3 text-left">User</th>
+                <th className="border p-3 text-left">Type</th>
                 <th className="border p-3 text-left">Amount</th>
-                <th className="border p-3 text-left">UTR Number</th>
+                <th className="border p-3 text-left">Details</th>
                 <th className="border p-3 text-left">Date</th>
                 <th className="border p-3 text-left">Status</th>
                 <th className="border p-3 text-left">Actions</th>
@@ -245,11 +523,43 @@ export default function AdminPage() {
                       {transaction.userEmail}
                     </div>
                   </td>
+                  <td className="border p-3">
+                    {transaction.type === "deposit" ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <ArrowUpCircle className="mr-1 h-3 w-3" />
+                        Deposit
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <ArrowDownCircle className="mr-1 h-3 w-3" />
+                        Withdrawal
+                      </span>
+                    )}
+                  </td>
                   <td className="border p-3 font-medium">
                     ₹{transaction.amount}
+                    {transaction.type === "withdrawal" && (
+                      <div className="text-xs text-gray-500">
+                        (Requested: ₹
+                        {(transaction as WithdrawalTransaction).requestedAmount}
+                        )
+                      </div>
+                    )}
                   </td>
                   <td className="border p-3 font-mono">
-                    {transaction.utrNumber}
+                    {transaction.type === "deposit" ? (
+                      (transaction as DepositTransaction).utrNumber || "N/A"
+                    ) : (
+                      <div className="text-xs">
+                        <div>
+                          UPI: {(transaction as WithdrawalTransaction).upiId}
+                        </div>
+                        <div>
+                          Fee: ₹
+                          {(transaction as WithdrawalTransaction).platformFee}
+                        </div>
+                      </div>
+                    )}
                   </td>
                   <td className="border p-3">
                     {transaction.createdAt?.toDate().toLocaleString()}
@@ -261,10 +571,13 @@ export default function AdminPage() {
                         Pending
                       </span>
                     )}
-                    {transaction.status === "approved" && (
+                    {(transaction.status === "approved" ||
+                      transaction.status === "completed") && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         <CheckCircle className="mr-1 h-3 w-3" />
-                        Approved
+                        {transaction.status === "approved"
+                          ? "Approved"
+                          : "Completed"}
                       </span>
                     )}
                     {transaction.status === "rejected" && (
@@ -279,23 +592,55 @@ export default function AdminPage() {
                       <div className="flex gap-2">
                         <Button
                           size="sm"
-                          onClick={() => handleApprove(transaction)}
+                          disabled={processingTransactions.has(transaction.id)}
+                          onClick={() =>
+                            transaction.type === "deposit"
+                              ? handleApproveDeposit(
+                                  transaction as DepositTransaction
+                                )
+                              : handleApproveWithdrawal(
+                                  transaction as WithdrawalTransaction
+                                )
+                          }
                         >
-                          Approve
+                          {processingTransactions.has(transaction.id) ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            "Approve"
+                          )}
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
+                          disabled={processingTransactions.has(transaction.id)}
                           onClick={() => {
                             const reason = prompt(
-                              "Enter reason for rejection:"
+                              `Enter reason for rejecting this ${transaction.type}:`
                             );
                             if (reason !== null) {
-                              handleReject(transaction, reason);
+                              transaction.type === "deposit"
+                                ? handleRejectDeposit(
+                                    transaction as DepositTransaction,
+                                    reason
+                                  )
+                                : handleRejectWithdrawal(
+                                    transaction as WithdrawalTransaction,
+                                    reason
+                                  );
                             }
                           }}
                         >
-                          Reject
+                          {processingTransactions.has(transaction.id) ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            "Reject"
+                          )}
                         </Button>
                       </div>
                     )}

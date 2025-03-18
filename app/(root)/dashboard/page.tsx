@@ -37,7 +37,7 @@ import TaskSection from "./TaskSection";
 import LoadingCard from "./LoadingCard";
 import PersonalDetailsSection from "./PersonalDetail";
 import GroupCard from "@/components/ui/GroupCard";
-
+import GridLoader from "react-spinners/GridLoader";
 // Stats Card Component
 const StatCard = ({
   icon,
@@ -287,7 +287,7 @@ const ActivitySection = ({
 );
 
 const DashboardPage = () => {
-  const { user, userData, refreshUser } = useAuth();
+  const { user, userData, refreshUser, loading } = useAuth();
   const { groups } = useGroups();
   const { tasks, acceptTask, deleteTask, refreshTasks } = useTasks();
   const [userGroups, setUserGroups] = useState<any[]>([]);
@@ -514,8 +514,14 @@ const DashboardPage = () => {
       toast.error("Failed to delete task");
     }
   };
-
-  if (!userData || !user) {
+  if (loading) {
+    return (
+      <div className="absolute bg-white inset-0 flex justify-center items-center">
+        <GridLoader />
+      </div>
+    );
+  }
+  if ((!userData || !user) && !loading) {
     return <LoginPrompt />;
   }
 

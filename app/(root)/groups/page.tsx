@@ -8,10 +8,10 @@ import GroupCard from "@/components/goups/GroupCard";
 import { useRouter } from "next/navigation";
 import { useGroups } from "@/lib/context/GroupContext";
 import LoginPrompt from "@/components/ui/loginBanner";
-
+import GridLoader from "react-spinners/GridLoader";
 export default function ActiveGroups() {
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const { user } = useAuth();
+  const { user, userData, loading } = useAuth();
   const router = useRouter();
   const { groups, getGroups } = useGroups();
   const {
@@ -48,7 +48,14 @@ export default function ActiveGroups() {
     return () => clearInterval(intervalId);
   }, [getGroups, showCreateForm]); // Added getGroups to dependency array
 
-  if (!user) {
+  if (loading) {
+    return (
+      <div className="absolute z-100 bg-white inset-0 flex justify-center items-center">
+        <GridLoader />
+      </div>
+    );
+  }
+  if ((!userData || !user) && !loading) {
     return <LoginPrompt />;
   }
 

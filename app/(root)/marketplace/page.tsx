@@ -2,15 +2,15 @@
 import { useEffect, useState } from "react";
 import { useTasks } from "@/lib/context/TaskContext";
 import TaskCard from "@/components/marketplace.tsx/TaskCard";
-import { PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle } from "lucide-react";
 import CreateTaskForm from "@/components/marketplace.tsx/createTaskForm";
 // import { getUserFromDB } from "@/lib/firebaseutils";
 import { useAuth } from "@/lib/context/AuthProvider";
 import { useRouter } from "next/navigation";
 import LoginPrompt from "@/components/ui/loginBanner";
-
+import GridLoader from "react-spinners/GridLoader";
 export default function TasksPage() {
-  const { user, loading } = useAuth();
+  const { user, userData, loading } = useAuth();
   const router = useRouter();
   const { tasks, refreshTasks } = useTasks();
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -22,7 +22,14 @@ export default function TasksPage() {
     }, 3000);
     return () => clearInterval(IntervalId);
   }, [refreshTasks, tasks]);
-  if (!user) {
+  if (loading) {
+    return (
+      <div className="absolute bg-white inset-0 z-100 flex justify-center items-center">
+        <GridLoader />
+      </div>
+    );
+  }
+  if ((!userData || !user) && !loading) {
     return <LoginPrompt />;
   }
   return (
