@@ -69,7 +69,7 @@ export default function CreateGroupForm({
         await updateUser({ wallet: userData?.wallet - 2 });
       }
       const docRef = await addDoc(collection(db, "groups"), newGroup);
-      console.log("Group created with ID:", docRef.id);
+      // console.log("Group created with ID:", docRef.id);
       await updateUser({
         createdGroups: [...userData?.createdGroups, docRef.id],
       });
