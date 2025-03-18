@@ -3,8 +3,9 @@ import { useAuth } from "@/lib/context/AuthProvider";
 import { db } from "@/lib/firebaseConfig";
 import { getUserFromDB } from "@/lib/firebaseutils";
 import { arrayUnion, doc, increment, updateDoc } from "firebase/firestore";
-import { Link } from "lucide-react";
+
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FaCheck } from "react-icons/fa";
 import { toast } from "sonner";
