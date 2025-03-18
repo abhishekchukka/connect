@@ -11,7 +11,7 @@ export const getUserFromDB = async (uid: string) => {
     if (userSnap.exists()) {
       return { id: userSnap.id, ...userSnap.data() }; // Return user data
     } else {
-      console.log("No user found in database");
+      // console.log("No user found in database");
       return null;
     }
   } catch (error) {

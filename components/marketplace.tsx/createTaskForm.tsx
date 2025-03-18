@@ -21,7 +21,7 @@ export default function CreateTaskForm({
   const [status, setStatus] = useState("pending");
 
   const { user, userData, updateUser } = useAuth();
-  console.log(userData);
+  // console.log(userData);
   const { refreshTasks } = useTasks();
 
   // const priorities = ["Low", "Medium", "High"];
@@ -57,7 +57,7 @@ export default function CreateTaskForm({
 
       const docRef = await addDoc(collection(db, "tasks"), newTask);
 
-      console.log("Task created with ID:", docRef.id);
+      // console.log("Task created with ID:", docRef.id);
       await updateUser(
         {
           createdTasks: [...userData?.createdTasks, docRef.id],

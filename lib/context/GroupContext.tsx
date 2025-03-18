@@ -44,7 +44,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
   const [fetchTrigger, setFetchTrigger] = useState(false);
   const [present, setPresent] = useState(false);
   const { user, updateUser, userData } = useAuth();
-  console.log("userData", userData);
+  // console.log("userData", userData);
   const userId = user?.uid;
 
   const getGroups = async () => {

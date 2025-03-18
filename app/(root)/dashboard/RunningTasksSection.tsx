@@ -17,7 +17,7 @@ const RunningTasksSection = ({
   emptyMessage: string;
 }) => {
   const { user } = useAuth();
-  console.log("tasks", tasks);
+  // console.log("tasks", tasks);
   const [assignedUsers, setAssignedUsers] = useState<{ [key: string]: any }>(
     {}
   );
